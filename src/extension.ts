@@ -224,22 +224,39 @@ export class ClangDocumentFormattingEditProvider implements vscode.DocumentForma
       });
   }
 
-  private getAssumedFilename(document: vscode.TextDocument) {
-    const config = vscode.workspace.getConfiguration('clang-format');
-    const assumedFilename = config.get<string>('assumeFilename');
+  private replaceAssumedFilenameVariables(str: string, document: vscode.TextDocument): string {
     const parsedPath = path.parse(document.fileName);
     const fileNoExtension = path.join(parsedPath.dir, parsedPath.name);
 
-    if (assumedFilename === '' || assumedFilename === null) {
-      return document.fileName;
-    }
-
-    return assumedFilename
+    return str
       .replace(/\${file}/g, document.fileName)
       .replace(/\${fileNoExtension}/g, fileNoExtension)
       .replace(/\${fileBasename}/g, parsedPath.base)
       .replace(/\${fileBasenameNoExtension}/g, parsedPath.name)
       .replace(/\${fileExtname}/g, parsedPath.ext);
+  }
+
+  private getAssumedFilename(document: vscode.TextDocument) {
+    const config = vscode.workspace.getConfiguration('clang-format');
+    const assumedFilename = config.get<object>('assumeFilename.languages');
+    let ret = assumedFilename[this.getLanguage(document)];
+
+    if (ret && ret.trim()) {
+      ret = this.replaceAssumedFilenameVariables(ret.trim(), document);
+      if (ret && ret.trim()) {
+        return ret.trim();
+      }
+    }
+
+    ret = config.get<string>('assumeFilename.default');
+    if (ret && ret.trim()) {
+      ret = this.replaceAssumedFilenameVariables(ret.trim(), document);
+      if (ret && ret.trim()) {
+        return ret.trim();
+      }
+    }
+
+    return this.replaceStyleVariables(this.defaultConfigure.style, document);
   }
 
   private getWorkspaceFolder(): string | undefined {
